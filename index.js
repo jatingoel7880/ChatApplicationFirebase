@@ -30,19 +30,19 @@ io.on('connection', (socket)=>{
   
   socket.on('usersOnline',(email)=>{
     onlineUsers[email]=socket.id;
-    io.emit('updateUserStatus',{email,status:'online'})
-  })
+    io.emit('updateUserStatus',{email,status:'online'});
+  });
 
   socket.on('disconnect',()=>{
     const email=Object.keys(onlineUsers).find(key=> onlineUsers[key]=== socket.id);
     if(email){
       delete onlineUsers[email];
-      io.emit('updateUserStatus', {email,status:'ofline'})
+      io.emit('updateUserStatus', {email,status:'offline'});
     }
-  })
+  });
+
   socket.on('joinRoom',(roomId)=>{
     socket.join(roomId);
-
     //send previous message
     if(messages[roomId]){
       socket.emit('previousMessages', messages[roomId]);
@@ -51,9 +51,9 @@ io.on('connection', (socket)=>{
 
   socket.on("sendMessages", (msg)=>{
     const {sender,receiver,text, createdAt, roomId}=msg;
-    if(!msg[roomId]) messages[roomId]=[];
-    messages[roomId].push({sender, receiver,text,createdAt})
-    io.to(roomId).emit('receiveMessage',{sender, receiver, text, createdAt})
+    if(!messages[roomId]) messages[roomId]=[];
+    messages[roomId].push({sender, receiver,text,createdAt});
+    io.to(roomId).emit('receiveMessage',{sender, receiver, text, createdAt});
   });
 
   socket.on("disconnect",()=>{
