@@ -16,14 +16,37 @@ app.use(express.urlencoded({ extended: true }));
      allowedHeaders: ['Content-Type', 'Authorization']
   }));
 
-const socketIO = require("socket.io")(http, {
+const io = require("socket.io")(http, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
   },
 });
 
-chatHistory=[];
+const messages={};
+io.on('connection', (socket)=>{
+  console.log('A user connected',socket.id);
+  
+  socket.on('joinRoom',(roomId)=>{
+    socket.join(roomId);
+
+    //send previous message
+    if(messages[roomId]){
+      socket.emit('previousMessages', messages[roomId]);
+    }
+  });
+
+  socket.on("sendMessages", (msg)=>{
+    const {sender,receiver,text, createdAt, roomId}=msg;
+    if(!msg[roomId]) messages[roomId]=[];
+    messages[roomId].push({sender, receiver,text,createdAt})
+    io.to(roomId).emit('receiveMessage',{sender, receiver, text, createdAt})
+  });
+
+  socket.on("disconnect",()=>{
+    console.log('User Disconnected', socket.id)
+  })
+})
 
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
@@ -37,7 +60,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 app.use('/api/v1', userRouter);
 
 app.get("/api", (req, res) => {
-  res.json(chatHistory);
+  res.send('Socket Io chat server running');
 });
 
 http.listen(PORT, () => {
