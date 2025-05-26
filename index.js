@@ -24,9 +24,22 @@ const io = require("socket.io")(http, {
 });
 
 const messages={};
+const onlineUsers = {}; // { email: socket.id }
 io.on('connection', (socket)=>{
   console.log('A user connected',socket.id);
   
+  socket.on('usersOnline',(email)=>{
+    onlineUsers[email]=socket.id;
+    io.emit('updateUserStatus',{email,status:'online'})
+  })
+
+  socket.on('disconnect',()=>{
+    const email=Object.keys(onlineUsers).find(key=> onlineUsers[key]=== socket.id);
+    if(email){
+      delete onlineUsers[email];
+      io.emit('updateUserStatus', {email,status:'ofline'})
+    }
+  })
   socket.on('joinRoom',(roomId)=>{
     socket.join(roomId);
 
@@ -59,8 +72,12 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 app.use('/api/v1', userRouter);
 
-app.get("/api", (req, res) => {
+app.get("/api/v1", (req, res) => {
   res.send('Socket Io chat server running');
+});
+
+app.get("/api/v1/online-users", (req, res) => {
+  res.json({online:Object.keys(onlineUsers)});
 });
 
 http.listen(PORT, () => {
