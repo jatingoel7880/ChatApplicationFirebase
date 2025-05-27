@@ -6,8 +6,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   image: String,
   createdAt: { type: Date, default: Date.now },
-  lastLogin: { type: Date, default: Date.now },
-  fcmToken: { type: String },
+  lastLogin: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('User', userSchema);
