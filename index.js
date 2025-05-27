@@ -6,6 +6,8 @@ const app = express();
 const http = require("http").Server(app);
 const userRouter = require('./router/userRouter');
 const PORT = process.env.PORT || 4000;
+const admin = require('./firebaseAdmin');
+const User = require('./models/userSchema');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -49,11 +51,34 @@ io.on('connection', (socket)=>{
     }
   });
 
-  socket.on("sendMessages", (msg)=>{
+  socket.on("sendMessages", async (msg)=>{
     const {sender,receiver,text, createdAt, roomId}=msg;
     if(!messages[roomId]) messages[roomId]=[];
     messages[roomId].push({sender, receiver,text,createdAt});
     io.to(roomId).emit('receiveMessage',{sender, receiver, text, createdAt});
+
+    // Send push notification if receiver is offline
+    const isReceiverOnline = onlineUsers[receiver];
+    if (!isReceiverOnline) {
+      try {
+        const receiverUser = await User.findOne({ email: receiver });
+        if (receiverUser && receiverUser.fcmToken) {
+          const payload = {
+            notification: {
+              title: `New message from ${sender}`,
+              body: text,
+            },
+            data: {
+              senderEmail: sender,
+              roomId: roomId,
+            },
+          };
+          await admin.messaging().sendToDevice(receiverUser.fcmToken, payload);
+        }
+      } catch (err) {
+        console.error('Error sending FCM notification:', err);
+      }
+    }
   });
 
   socket.on("disconnect",()=>{
