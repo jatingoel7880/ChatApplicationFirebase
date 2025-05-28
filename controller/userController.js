@@ -23,11 +23,13 @@ exports.googleAuth = async (req, res) => {
         name: name || '',
         email: email || '',
         image: picture || '',
+        fcmToken: fcmToken || '';
         lastLogin: new Date() });
     } else {
       // Optionally update the user's info
       user.name = name;
       user.picture = picture;
+      user.fcmToken=fcmToken || user.fcmToken;
             user.lastLogin = new Date();
       await user.save();
     }
@@ -50,6 +52,35 @@ exports.getAllUsers=async(req,res)=>{
   }
   catch(err){
     res.status(500).json({success:false,message:"Failed to fetch the users",error:err.message});
+  }
+}
+
+
+exports.sendNotification=async(req,res)=>{
+  const {receiveEmail, senderName, chatId, message }= req.body();
+  const receiver=await User.findOne({email: receiveEmail});
+  if(!receiver || !receiver.fcmToken){
+    return res.status(400).json({success:false,message:"User or token not found"})
+  }
+
+  const payload={
+    token:receiver.fcmToken,
+    notification:{
+      title:`Message from ${senderName}`,
+      body:message|| 'New message',
+    },
+    data:{
+      chatId:chatId,
+    },
+  };
+
+  try{
+    const res=await admin.messaging().send(payload);
+    console.log(res)
+    return res.status(200).json({success:true,messageId:res})
+  }
+  catch(error){
+    return res.status(400).json({success:false, message: 'Failed to send message', error})
   }
 }
 //  try {
