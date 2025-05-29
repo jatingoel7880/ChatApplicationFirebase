@@ -3,6 +3,7 @@ const userAuth= require('../firebase')
 // Add a new item
 exports.googleAuth = async (req, res) => {
   const {idToken,fcmToken}= req.body;
+  console.log(fcmToken)
   console.log(idToken)
   if(!idToken){
     return res.status(400).json({
@@ -29,8 +30,8 @@ exports.googleAuth = async (req, res) => {
       // Optionally update the user's info
       user.name = name;
       user.picture = picture;
-      user.fcmToken=fcmToken || user.fcmToken;
-            user.lastLogin = new Date();
+      user.fcmToken= fcmToken || user.fcmToken;
+      user.lastLogin = new Date();
       await user.save();
     }
 
