@@ -2,7 +2,7 @@ const User = require('../models/userSchema');
 const userAuth= require('../firebase')
 // Add a new item
 exports.googleAuth = async (req, res) => {
-  const {idToken}= req.body;
+  const {idToken,fcmToken}= req.body;
   console.log(idToken)
   if(!idToken){
     return res.status(400).json({
