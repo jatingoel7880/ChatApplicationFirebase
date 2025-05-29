@@ -49,7 +49,8 @@ exports.googleAuth = async (req, res) => {
 exports.getAllUsers=async(req,res)=>{
   try{
     const users=await User.find({},'-__v -_id');
-    res.status(200).json({success:t,rue,users});
+    console.log("users", users)
+    res.status(200).json({success:true,users});
   }
   catch(err){
     res.status(500).json({success:false,message:"Failed to fetch the users",error:err.message});
