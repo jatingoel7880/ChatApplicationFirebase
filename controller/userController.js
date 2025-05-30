@@ -1,5 +1,7 @@
 const User = require('../models/userSchema');
-const userAuth= require('../firebase')
+const userAuth = require('../firebase');
+const admin = require('../firebase');
+
 // Add a new item
 exports.googleAuth = async (req, res) => {
   const {idToken,fcmToken}= req.body;
@@ -57,34 +59,86 @@ exports.getAllUsers=async(req,res)=>{
   }
 }
 
-
-exports.sendNotification=async(req,res)=>{
-  const {receiveEmail, senderName, chatId, message }= req.body();
-  const receiver=await User.findOne({email: receiveEmail});
-  if(!receiver || !receiver.fcmToken){
-    return res.status(400).json({success:false,message:"User or token not found"})
+exports.sendMessage = async (req, res) => {
+  const {receiveEmail, senderName, chatId, message} = req.body;
+  const receiver = await User.findOne({email: receiveEmail});
+  if (!receiver || !receiver.fcmToken) {
+    return res.status(400).json({success: false, message: "User or token not found"});
   }
 
-  const payload={
-    token:receiver.fcmToken,
-    notification:{
-      title:`Message from ${senderName}`,
-      body:message|| 'New message',
+  const currentTime = new Date().toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const payload = {
+    token: receiver.fcmToken,
+    notification: {
+      title: `Message from ${senderName}`,
+      body: message || 'New message',
+      android: {
+        channelId: 'chat_messages',
+        priority: 'high',
+        sound: 'default',
+        icon: 'ic_notification',
+        color: '#4f8cff'
+      }
     },
-    data:{
-      chatId:chatId,
+    data: {
+      chatId: chatId,
+      senderName: senderName,
+      message: message,
+      timestamp: currentTime
     },
+    android: {
+      priority: 'high',
+      notification: {
+        channelId: 'chat_messages',
+        priority: 'high',
+        sound: 'default',
+        icon: 'ic_notification',
+        color: '#4f8cff'
+      }
+    }
   };
 
-  try{
-    const res=await admin.messaging().send(payload);
-    console.log(res)
-    return res.status(200).json({success:true,messageId:res})
+  try {
+    const response = await admin.messaging().send(payload);
+    console.log('Notification sent successfully:', response);
+    return res.status(200).json({success: true, messageId: response});
+  } catch (error) {
+    console.error('Failed to send notification:', error);
+    return res.status(400).json({success: false, message: 'Failed to send message', error: error.message});
   }
-  catch(error){
-    return res.status(400).json({success:false, message: 'Failed to send message', error})
-  }
-}
+};
+
+
+// exports.sendMessage=async(req,res)=>{
+  //     const {receiveEmail, senderName, chatId, message }= req.body();
+  //     const receiver=await User.findOne({email: receiveEmail});
+  //     if(!receiver || !receiver.fcmToken){
+  //       return res.status(400).json({success:false,message:"User or token not found"})
+  //     }
+  //       const payload={
+  //         token:receiver.fcmToken,
+  //         notification:{
+  //           title:`Message from ${senderName}`,
+  //           body:message|| 'New message',
+  //           data:{
+  //             chatId:chatId,
+  //         },
+  //     }
+  //     try{
+  //         const res=await admin.messaging().send(payload);
+  //         console.log(res)
+  //         return res.status(200).json({success:true,messageId:res})
+  //     }
+  //         catch(error){
+  //             return res.status(400).json({success:false, message: 'Failed to send message', error})
+  //           }
+  //         }
+  //     }
+
 //  try {
 //     const { name } = req.body;
 //     if (!name) {
