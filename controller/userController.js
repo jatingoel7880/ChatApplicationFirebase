@@ -87,14 +87,15 @@ exports.sendMessage = async (req, res) => {
     token: receiver.fcmToken,
     notification: {
       title: `Message from ${senderName}`,
-      body: message || 'New message',
-      android: {
-        channelId: 'chat_messages',
-        priority: 'high',
-        sound: 'default',
-        icon: 'ic_notification',
-        color: '#4f8cff'
-      }
+      // android: {
+      //   channelId: 'chat_messages',
+      //   priority: 'high',
+      //   sound: 'default',
+      //   icon: 'ic_notification',
+      //   color: '#4f8cff'
+      // }
+      
+      body: message || 'New message'
     },
     data: {
       roomId: roomId,
