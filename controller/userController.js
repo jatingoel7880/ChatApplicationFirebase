@@ -139,7 +139,7 @@ exports.sendMessage = async (req, res) => {
 
 
 // exports.sendMessage=async(req,res)=>{
-  //     const {receiveEmail, senderName, roomId, message }= req.body();
+  //     const {receiveEmail, senderName, chatId, message }= req.body();
   //     const receiver=await User.findOne({email: receiveEmail});
   //     if(!receiver || !receiver.fcmToken){
   //       return res.status(400).json({success:false,message:"User or token not found"})
@@ -150,7 +150,7 @@ exports.sendMessage = async (req, res) => {
   //           title:`Message from ${senderName}`,
   //           body:message|| 'New message',
   //           data:{
-  //             roomId:roomId,
+  //             chatId:chatId,
   //         },
   //     }
   //     try{
