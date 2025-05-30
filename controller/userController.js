@@ -60,7 +60,7 @@ exports.getAllUsers=async(req,res)=>{
 }
 
 exports.sendMessage = async (req, res) => {
-  const {receiveEmail, senderName, senderEmail, chatId, message} = req.body;
+  const {receiveEmail, senderName, senderEmail, roomId, message} = req.body;
   
   // Validate sender
   const sender = await User.findOne({email: senderEmail});
@@ -87,18 +87,17 @@ exports.sendMessage = async (req, res) => {
     token: receiver.fcmToken,
     notification: {
       title: `Message from ${senderName}`,
-      // body: message || 'New message',
-      // android: {
-      //   channelId: 'chat_messages',
-      //   priority: 'high',
-      //   sound: 'default',
-      //   icon: 'ic_notification',
-      //   color: '#4f8cff'
-      // }
-      body: message || 'New message'
+      body: message || 'New message',
+      android: {
+        channelId: 'chat_messages',
+        priority: 'high',
+        sound: 'default',
+        icon: 'ic_notification',
+        color: '#4f8cff'
+      }
     },
     data: {
-      chatId: chatId,
+      roomId: roomId,
       senderName: senderName,
       senderEmail: senderEmail,
       message: message,
@@ -111,13 +110,18 @@ exports.sendMessage = async (req, res) => {
         priority: 'high',
         sound: 'default',
         icon: 'ic_notification',
-        color: '#4f8cff'
+        color: '#4f8cff',
+        body: message || 'New message'
       }
     },
     apns: {
       payload: {
         aps: {
-          sound: 'default'
+          sound: 'default',
+          alert: {
+            title: `Message from ${senderName}`,
+            body: message || 'New message'
+          }
         }
       }
     }
@@ -135,7 +139,7 @@ exports.sendMessage = async (req, res) => {
 
 
 // exports.sendMessage=async(req,res)=>{
-  //     const {receiveEmail, senderName, chatId, message }= req.body();
+  //     const {receiveEmail, senderName, roomId, message }= req.body();
   //     const receiver=await User.findOne({email: receiveEmail});
   //     if(!receiver || !receiver.fcmToken){
   //       return res.status(400).json({success:false,message:"User or token not found"})
@@ -146,7 +150,7 @@ exports.sendMessage = async (req, res) => {
   //           title:`Message from ${senderName}`,
   //           body:message|| 'New message',
   //           data:{
-  //             chatId:chatId,
+  //             roomId:roomId,
   //         },
   //     }
   //     try{
