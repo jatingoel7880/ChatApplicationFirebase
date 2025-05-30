@@ -78,10 +78,7 @@ exports.sendMessage = async (req, res) => {
     return res.status(400).json({success: false, message: "User or token not found"});
   }
 
-  const currentTime = new Date().toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const currentTime = new Date().toISOString();
 
   const payload = {
     token: receiver.fcmToken,
@@ -102,7 +99,8 @@ exports.sendMessage = async (req, res) => {
       senderName: senderName,
       senderEmail: senderEmail,
       message: message,
-      timestamp: currentTime
+      timestamp: currentTime,
+      type: 'chat_message'
     },
     android: {
       priority: 'high',
