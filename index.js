@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
-const userRoutes = require('./route/userRouter');
+const userRoutes = require('./router/userRouter');
 const Message = require('./models/messageSchema');
 
 const app = express();
