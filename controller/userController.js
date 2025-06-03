@@ -3,6 +3,11 @@ const userAuth = require('../firebase');
 const admin = require('../firebase');
 const Message = require('../models/messageSchema');
 
+// Helper function to generate consistent roomId
+const getRoomId = (email1, email2) => {
+  return [email1, email2].sort().join('_');
+};
+
 // Add a new item
 exports.googleAuth = async (req, res) => {
   const {idToken,fcmToken}= req.body;
@@ -80,6 +85,7 @@ exports.sendNotification = async (req, res) => {
   }
 
   const currentTime = new Date().toISOString();
+  const consistentRoomId = getRoomId(senderEmail, receiverEmail);
 
   // Store the message in the database
   try {
@@ -87,7 +93,7 @@ exports.sendNotification = async (req, res) => {
       text: message,
       sender: senderEmail,
       receiver: receiverEmail,
-      roomId: roomId,
+      roomId: consistentRoomId,
       createdAt: currentTime
     });
     await newMessage.save();
@@ -103,7 +109,7 @@ exports.sendNotification = async (req, res) => {
       body: message || 'New message'
     },
     data: {
-      roomId: roomId,
+      roomId: consistentRoomId,
       senderName: senderName,
       senderEmail: senderEmail,
       message: message,
