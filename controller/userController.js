@@ -1,6 +1,7 @@
 const User = require('../models/userSchema');
 const userAuth = require('../firebase');
 const admin = require('../firebase');
+const Message = require('../models/messageSchema');
 
 // Add a new item
 exports.googleAuth = async (req, res) => {
@@ -59,8 +60,8 @@ exports.getAllUsers=async(req,res)=>{
   }
 }
 
-exports.sendMessage = async (req, res) => {
-  const {receiveEmail, senderName, senderEmail, roomId, message} = req.body;
+exports.sendNotification = async (req, res) => {
+  const {receiverEmail, senderName, senderEmail, roomId, message} = req.body;
   
   // Validate sender
   const sender = await User.findOne({email: senderEmail});
@@ -73,25 +74,32 @@ exports.sendMessage = async (req, res) => {
     return res.status(400).json({success: false, message: "Invalid sender name"});
   }
 
-  const receiver = await User.findOne({email: receiveEmail});
+  const receiver = await User.findOne({email: receiverEmail});
   if (!receiver || !receiver.fcmToken) {
     return res.status(400).json({success: false, message: "User or token not found"});
   }
 
   const currentTime = new Date().toISOString();
 
+  // Store the message in the database
+  try {
+    const newMessage = new Message({
+      text: message,
+      sender: senderEmail,
+      receiver: receiverEmail,
+      roomId: roomId,
+      createdAt: currentTime
+    });
+    await newMessage.save();
+  } catch (error) {
+    console.error('Failed to save message:', error);
+    return res.status(500).json({success: false, message: 'Failed to save message', error: error.message});
+  }
+
   const payload = {
     token: receiver.fcmToken,
     notification: {
       title: `Message from ${senderName}`,
-      // android: {
-      //   channelId: 'chat_messages',
-      //   priority: 'high',
-      //   sound: 'default',
-      //   icon: 'ic_notification',
-      //   color: '#4f8cff'
-      // }
-      
       body: message || 'New message'
     },
     data: {
@@ -100,7 +108,11 @@ exports.sendMessage = async (req, res) => {
       senderEmail: senderEmail,
       message: message,
       timestamp: currentTime,
-      type: 'chat_message'
+      type: 'chat_message',
+      text: message,
+      sender: senderEmail,
+      receiver: receiverEmail,
+      createdAt: currentTime
     },
     android: {
       priority: 'high',
@@ -136,6 +148,70 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
+exports.getMessages = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    if (!roomId) {
+      return res.status(400).json({
+        success: false,
+        message: "Room ID is required"
+      });
+    }
+
+    const messages = await Message.find({ roomId })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      messages
+    });
+  } catch (error) {
+    console.error('Failed to fetch messages:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch messages',
+      error: error.message
+    });
+  }
+};
+
+exports.saveMessage = async (req, res) => {
+  try {
+    const { text, sender, receiver, roomId, createdAt, status } = req.body;
+
+    if (!text || !sender || !receiver || !roomId) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields"
+      });
+    }
+
+    const newMessage = new Message({
+      text,
+      sender,
+      receiver,
+      roomId,
+      createdAt: createdAt || new Date(),
+      status: status || 'sent'
+    });
+
+    const savedMessage = await newMessage.save();
+
+    return res.status(200).json({
+      success: true,
+      message: savedMessage
+    });
+  } catch (error) {
+    console.error('Failed to save message:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to save message',
+      error: error.message
+    });
+  }
+};
 
 // exports.sendMessage=async(req,res)=>{
   //     const {receiveEmail, senderName, chatId, message }= req.body();
