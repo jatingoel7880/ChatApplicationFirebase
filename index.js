@@ -16,12 +16,17 @@ const io = socketIo(server, {
   }
 });
 
+// Define port
+const PORT = process.env.PORT || 5000;
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
+app.use('/api/v1', userRoutes);
+
 // Socket.IO connection handling
 const onlineUsers = {};
 
@@ -30,6 +35,10 @@ io.on('connection', (socket) => {
 
   // Handle user online status
   socket.on('userOnline', (email) => {
+    if (!email) {
+      console.error('Invalid email provided for userOnline');
+      return;
+    }
     onlineUsers[email] = socket.id;
     io.emit('userStatus', { email, status: 'online' });
   });
@@ -43,6 +52,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('joinRoom', async (roomId) => {
+    if (!roomId) {
+      console.error('Invalid roomId provided for joinRoom');
+      return;
+    }
+    
     console.log('User joining room:', roomId);
     socket.join(roomId);
     
@@ -61,6 +75,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on("sendMessages", async (msg) => {
+    if (!msg || !msg.text || !msg.sender || !msg.receiver || !msg.roomId) {
+      console.error('Invalid message format received:', msg);
+      socket.emit('messageError', { error: 'Invalid message format' });
+      return;
+    }
+
     console.log('Received message:', msg);
     const {sender, receiver, text, createdAt, roomId} = msg;
     
@@ -105,10 +125,16 @@ io.on('connection', (socket) => {
       }
     } catch (error) {
       console.error('Error saving message:', error);
+      socket.emit('messageError', { error: 'Failed to save message' });
     }
   });
 
   socket.on('markAsRead', async ({ roomId, messageId }) => {
+    if (!roomId || !messageId) {
+      console.error('Invalid roomId or messageId for markAsRead');
+      return;
+    }
+
     try {
       const message = await Message.findById(messageId);
       if (message) {
@@ -121,10 +147,12 @@ io.on('connection', (socket) => {
       }
     } catch (error) {
       console.error('Error marking message as read:', error);
+      socket.emit('messageError', { error: 'Failed to mark message as read' });
     }
   });
 });
 
+// Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -134,8 +162,7 @@ mongoose.connect(process.env.MONGODB_URI, {
   console.error('❌ MongoDB connection error:', err);
 });
 
-app.use('/api/v1', userRoutes);
-
+// API routes
 app.get("/api/v1", (req, res) => {
   res.send('Socket Io chat server running');
 });
@@ -144,6 +171,7 @@ app.get("/api/v1/online-users", (req, res) => {
   res.json({online: Object.keys(onlineUsers)});
 });
 
-http.listen(PORT, () => {
+// Start server
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
