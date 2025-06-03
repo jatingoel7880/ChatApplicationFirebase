@@ -122,6 +122,8 @@ io.on('connection', (socket) => {
         }
       } else {
         console.log('Message already exists in database, skipping save');
+        // Still broadcast the existing message to ensure all clients are in sync
+        io.to(roomId).emit('receiveMessage', existingMessage);
       }
     } catch (error) {
       console.error('Error saving message:', error);

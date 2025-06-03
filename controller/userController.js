@@ -87,19 +87,32 @@ exports.sendNotification = async (req, res) => {
   const currentTime = new Date().toISOString();
   const consistentRoomId = getRoomId(senderEmail, receiverEmail);
 
-  // Store the message in the database
-  try {
-    const newMessage = new Message({
-      text: message,
-      sender: senderEmail,
-      receiver: receiverEmail,
-      roomId: consistentRoomId,
-      createdAt: currentTime
-    });
-    await newMessage.save();
-  } catch (error) {
-    console.error('Failed to save message:', error);
-    return res.status(500).json({success: false, message: 'Failed to save message', error: error.message});
+  // Check if message already exists
+  const existingMessage = await Message.findOne({
+    text: message,
+    sender: senderEmail,
+    receiver: receiverEmail,
+    roomId: consistentRoomId,
+    createdAt: new Date(currentTime)
+  });
+
+  if (existingMessage) {
+    console.log('Message already exists, skipping save');
+  } else {
+    // Store the message in the database
+    try {
+      const newMessage = new Message({
+        text: message,
+        sender: senderEmail,
+        receiver: receiverEmail,
+        roomId: consistentRoomId,
+        createdAt: currentTime
+      });
+      await newMessage.save();
+    } catch (error) {
+      console.error('Failed to save message:', error);
+      return res.status(500).json({success: false, message: 'Failed to save message', error: error.message});
+    }
   }
 
   const payload = {
