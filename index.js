@@ -22,8 +22,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/v1', userRoutes);
-
 // Socket.IO connection handling
 const onlineUsers = {};
 
@@ -136,7 +134,7 @@ mongoose.connect(process.env.MONGODB_URI, {
   console.error('❌ MongoDB connection error:', err);
 });
 
-app.use('/api/v1', userRouter);
+app.use('/api/v1', userRoutes);
 
 app.get("/api/v1", (req, res) => {
   res.send('Socket Io chat server running');
