@@ -126,6 +126,7 @@ exports.sendNotification = async (req, res) => {
 
   // Only send notification if receiver is not in chat
   if (!isReceiverInChat) {
+    console.log('Sending notification as receiver is not in chat');
     const payload = {
       token: receiver.fcmToken,
       notification: {
@@ -164,42 +165,6 @@ exports.sendNotification = async (req, res) => {
         receiver: receiverEmail,
         createdAt: currentTime,
         click_action: 'FLUTTER_NOTIFICATION_CLICK',
-      },
-      android: {
-        priority: 'high',
-        notification: {
-          channelId: 'chat_messages',
-          priority: 'high',
-          sound: 'default',
-          icon: 'ic_notification',
-          color: '#4f8cff',
-          body: message || 'New message',
-          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-          visibility: 'public',
-          importance: 'high',
-          pressAction: {
-            id: 'default',
-          },
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: 'default',
-            badge: 1,
-            alert: {
-              title: `Message from ${senderName}`,
-              body: message || 'New message'
-            },
-            'mutable-content': 1,
-            'content-available': 1,
-            category: 'chat_message',
-          }
-        },
-        headers: {
-          'apns-priority': '10',
-          'apns-push-type': 'alert',
-        }
       }
     };
 
@@ -220,7 +185,6 @@ exports.sendNotification = async (req, res) => {
           );
           console.log('Removed invalid FCM token for user:', receiverEmail);
           
-          // Return success but indicate token was invalid
           return res.status(200).json({
             success: true,
             message: 'Message saved, notification failed - invalid token removed',
@@ -229,17 +193,6 @@ exports.sendNotification = async (req, res) => {
         } catch (updateError) {
           console.error('Failed to remove invalid FCM token:', updateError);
         }
-      } else if (error.code === 'messaging/invalid-registration-token') {
-        // Handle invalid token format
-        await User.updateOne(
-          { email: receiverEmail },
-          { $unset: { fcmToken: 1 } }
-        );
-        return res.status(200).json({
-          success: true,
-          message: 'Message saved, notification failed - invalid token format',
-          error: error.message
-        });
       }
       
       return res.status(200).json({
@@ -249,7 +202,7 @@ exports.sendNotification = async (req, res) => {
       });
     }
   } else {
-    // If receiver is in chat, just return success without sending notification
+    console.log('Skipping notification as receiver is in chat');
     return res.status(200).json({success: true, message: 'Message saved, notification skipped as receiver is in chat'});
   }
 };
