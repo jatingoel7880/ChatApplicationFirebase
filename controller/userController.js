@@ -124,9 +124,7 @@ exports.sendNotification = async (req, res) => {
       token: receiver.fcmToken,
       notification: {
         title: `Message from ${senderName}`,
-        body: message || 'New message',
-        sound: 'default',
-        badge: '1'
+        body: message || 'New message'
       },
       data: {
         roomId: consistentRoomId,

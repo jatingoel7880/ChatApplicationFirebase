@@ -34,52 +34,49 @@ const userRooms = {};
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-
-    // Handle user online status
-    // socket.on('userOnline', (email) => {
-    //   if (!email) {
-    //     console.error('Invalid email provided for userOnline');
-    //     return;
-    //   }
-    //   onlineUsers[email] = socket.id;
-    //   io.emit('userStatus', { email, status: 'online' });
-  socket.on('joinRoom', (roomId) => {
-    socket.join(roomId);
-    console.log(`User joined room: ${roomId}`);
+  // Handle user online status
+  socket.on('userOnline', (email) => {
+    if (!email) {
+      console.error('Invalid email provided for userOnline');
+      return;
+    }
+    onlineUsers[email] = socket.id;
+    io.emit('userStatus', { email, status: 'online' });
+    console.log('User online:', email);
   });
 
-  // socket.on('disconnect', () => {
+    // socket.on('disconnect', () => {
   //   const email = Object.keys(onlineUsers).find(key => onlineUsers[key] === socket.id);
   //   if(email) {
   //     delete onlineUsers[email];
   //     io.emit('updateUserStatus', {email, status: 'offline'});
   //   }
-  socket.on('userOnline', (userEmail) => {
-    onlineUsers[userEmail] = socket.id;
-    console.log('User online:', userEmail);
-  });
-
-  // socket.on('joinRoom', async (roomId) => {
-  //   if (!roomId) {
-  //     console.error('Invalid roomId provided for joinRoom');
-  //     return;
-  //   }
+  // socket.on('userOnline', (userEmail) => {
+  //   onlineUsers[userEmail] = socket.id;
+  //   console.log('User online:', userEmail);
+  // });
+  socket.on('joinRoom', async (roomId) => {
+    if (!roomId) {
+      console.error('Invalid roomId provided for joinRoom');
+      return;
+    }
     
-  //   console.log('User joining room:', roomId);
-  //   socket.join(roomId);
+    console.log('User joining room:', roomId);
+    socket.join(roomId);
     
-  //   try {
-  //     // Fetch messages from database
-  //     const messages = await Message.find({ roomId })
-  //       .sort({ createdAt: 1 })
-  //       .lean();
+    try {
+      // Fetch messages from database
+      const messages = await Message.find({ roomId })
+        .sort({ createdAt: 1 })
+        .lean();
       
-  //     console.log('Sending previous messages for room:', roomId);
-  //     socket.emit('previousMessages', messages);
-  //   } catch (error) {
-  //     console.error('Error fetching messages:', error);
-  //     socket.emit('previousMessages', []);
-  //   }
+      console.log('Sending previous messages for room:', roomId);
+      socket.emit('previousMessages', messages);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      socket.emit('previousMessages', []);
+    }
+  });
 
   socket.on('userInChat', ({ userEmail, roomId }) => {
     userRooms[userEmail] = roomId;
@@ -151,34 +148,37 @@ io.on('connection', (socket) => {
     }
   });
 
-  // socket.on('markAsRead', async ({ roomId, messageId }) => {
-  //   if (!roomId || !messageId) {
-  //     console.error('Invalid roomId or messageId for markAsRead');
-  //     return;
-  //   }
+  socket.on('markAsRead', async ({ roomId, messageId }) => {
+    if (!roomId || !messageId) {
+      console.error('Invalid roomId or messageId for markAsRead');
+      return;
+    }
 
-  //   try {
-  //     const message = await Message.findById(messageId);
-  //     if (message) {
-  //       message.status = 'read';
-  //       await message.save();
-  //       io.to(roomId).emit('messageStatus', {
-  //         messageId,
-  //         status: 'read'
-  //       });
-  //     }
-  //   } catch (error) {
-  //     console.error('Error marking message as read:', error);
-  //     socket.emit('messageError', { error: 'Failed to mark message as read' });
+    try {
+      const message = await Message.findById(messageId);
+      if (message) {
+        message.status = 'read';
+        await message.save();
+        io.to(roomId).emit('messageStatus', {
+          messageId,
+          status: 'read'
+        });
+      }
+    } catch (error) {
+      console.error('Error marking message as read:', error);
+      socket.emit('messageError', { error: 'Failed to mark message as read' });
+    }
+  });
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
     // Remove user from online users
-    const userEmail = Object.keys(onlineUsers).find(key => onlineUsers[key] === socket.id);
-    if (userEmail) {
-      delete onlineUsers[userEmail];
-      delete userRooms[userEmail];
-      console.log('User went offline:', userEmail);
+    const email = Object.keys(onlineUsers).find(key => onlineUsers[key] === socket.id);
+    if (email) {
+      delete onlineUsers[email];
+      delete userRooms[email];
+      io.emit('updateUserStatus', { email, status: 'offline' });
+      console.log('User went offline:', email);
     }
   });
 });
