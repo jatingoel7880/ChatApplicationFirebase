@@ -56,11 +56,14 @@ exports.googleAuth = async (req, res) => {
 
 exports.getAllUsers=async(req,res)=>{
   try{
+    console.log("Fetching all users...");
     const users=await User.find({},'-__v -_id');
-    console.log("users", users)
+    console.log("Number of users found:", users.length);
+    console.log("First user sample:", users[0]);
     res.status(200).json({success:true,users});
   }
   catch(err){
+    console.error("Error in getAllUsers:", err);
     res.status(500).json({success:false,message:"Failed to fetch the users",error:err.message});
   }
 }
@@ -88,32 +91,32 @@ exports.sendNotification = async (req, res) => {
   const consistentRoomId = getRoomId(senderEmail, receiverEmail);
 
   // Check if message already exists
-  const existingMessage = await Message.findOne({
-    text: message,
-    sender: senderEmail,
-    receiver: receiverEmail,
-    roomId: consistentRoomId,
-    createdAt: new Date(currentTime)
-  });
+  // const existingMessage = await Message.findOne({
+  //   text: message,
+  //   sender: senderEmail,
+  //   receiver: receiverEmail,
+  //   roomId: consistentRoomId,
+  //   createdAt: new Date(currentTime)
+  // });
 
-  if (existingMessage) {
-    console.log('Message already exists, skipping save');
-  } else {
-    // Store the message in the database
-    try {
-      const newMessage = new Message({
-        text: message,
-        sender: senderEmail,
-        receiver: receiverEmail,
-        roomId: consistentRoomId,
-        createdAt: currentTime
-      });
-      await newMessage.save();
-    } catch (error) {
-      console.error('Failed to save message:', error);
-      return res.status(500).json({success: false, message: 'Failed to save message', error: error.message});
-    }
-  }
+  // if (existingMessage) {
+  //   console.log('Message already exists, skipping save');
+  // } else {
+  //   // Store the message in the database
+  //   try {
+  //     const newMessage = new Message({
+  //       text: message,
+  //       sender: senderEmail,
+  //       receiver: receiverEmail,
+  //       roomId: consistentRoomId,
+  //       createdAt: currentTime
+  //     });
+  //     await newMessage.save();
+  //   } catch (error) {
+  //     console.error('Failed to save message:', error);
+  //     return res.status(500).json({success: false, message: 'Failed to save message', error: error.message});
+  //   }
+  // }
 
   const payload = {
     token: receiver.fcmToken,
