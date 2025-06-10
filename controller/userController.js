@@ -87,17 +87,20 @@ exports.sendNotification = async (req, res) => {
   const currentTime = new Date().toISOString();
   const consistentRoomId = getRoomId(senderEmail, receiverEmail);
 
-  // Check if message already exists
+  // Check if message already exists within the last 5 seconds
+  const fiveSecondsAgo = new Date(Date.now() - 5000);
   const existingMessage = await Message.findOne({
     text: message,
     sender: senderEmail,
     receiver: receiverEmail,
     roomId: consistentRoomId,
-    createdAt: new Date(currentTime)
+    createdAt: { $gte: fiveSecondsAgo }
   });
 
+  let savedMessage;
   if (existingMessage) {
-    console.log('Message already exists, skipping save');
+    console.log('Message already exists, using existing message');
+    savedMessage = existingMessage;
   } else {
     // Store the message in the database
     try {
@@ -108,7 +111,8 @@ exports.sendNotification = async (req, res) => {
         roomId: consistentRoomId,
         createdAt: currentTime
       });
-      await newMessage.save();
+      savedMessage = await newMessage.save();
+      console.log('New message saved:', savedMessage);
     } catch (error) {
       console.error('Failed to save message:', error);
       return res.status(500).json({success: false, message: 'Failed to save message', error: error.message});
@@ -131,7 +135,8 @@ exports.sendNotification = async (req, res) => {
       text: message,
       sender: senderEmail,
       receiver: receiverEmail,
-      createdAt: currentTime
+      createdAt: currentTime,
+      messageId: savedMessage._id.toString() // Add message ID to prevent duplicates
     },
     android: {
       priority: 'high',
@@ -160,7 +165,11 @@ exports.sendNotification = async (req, res) => {
   try {
     const response = await admin.messaging().send(payload);
     console.log('Notification sent successfully:', response);
-    return res.status(200).json({success: true, messageId: response});
+    return res.status(200).json({
+      success: true, 
+      messageId: response,
+      message: savedMessage
+    });
   } catch (error) {
     console.error('Failed to send notification:', error);
     return res.status(400).json({success: false, message: 'Failed to send message', error: error.message});
