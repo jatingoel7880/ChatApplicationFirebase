@@ -66,7 +66,7 @@ exports.getAllUsers=async(req,res)=>{
 }
 
 exports.sendNotification = async (req, res) => {
-  const {receiverEmail, senderName, senderEmail, roomId, message, isReceiverInChat} = req.body;
+  const {receiverEmail, senderName, senderEmail, roomId, message} = req.body;
   
   // Validate sender
   const sender = await User.findOne({email: senderEmail});
@@ -80,29 +80,20 @@ exports.sendNotification = async (req, res) => {
   }
 
   const receiver = await User.findOne({email: receiverEmail});
-  if (!receiver) {
-    return res.status(400).json({success: false, message: "Receiver not found"});
-  }
-
-  // Check if receiver has a valid FCM token
-  if (!receiver.fcmToken) {
-    console.log('Receiver has no FCM token, skipping notification');
-    return res.status(200).json({success: true, message: 'Message saved, notification skipped - no FCM token'});
+  if (!receiver || !receiver.fcmToken) {
+    return res.status(400).json({success: false, message: "User or token not found"});
   }
 
   const currentTime = new Date().toISOString();
   const consistentRoomId = getRoomId(senderEmail, receiverEmail);
 
-  // Check if message already exists with a time window
+  // Check if message already exists
   const existingMessage = await Message.findOne({
     text: message,
     sender: senderEmail,
     receiver: receiverEmail,
     roomId: consistentRoomId,
-    createdAt: {
-      $gte: new Date(currentTime).getTime() - 2000, // Within 2 seconds
-      $lte: new Date(currentTime).getTime() + 2000
-    }
+    createdAt: new Date(currentTime)
   });
 
   if (existingMessage) {
@@ -124,86 +115,55 @@ exports.sendNotification = async (req, res) => {
     }
   }
 
-  // Only send notification if receiver is not in chat
-  if (!isReceiverInChat) {
-    console.log('Sending notification as receiver is not in chat');
-    const payload = {
-      token: receiver.fcmToken,
+  const payload = {
+    token: receiver.fcmToken,
+    notification: {
+      title: `Message from ${senderName}`,
+      body: message || 'New message'
+    },
+    data: {
+      roomId: consistentRoomId,
+      senderName: senderName,
+      senderEmail: senderEmail,
+      message: message,
+      timestamp: currentTime,
+      type: 'chat_message',
+      text: message,
+      sender: senderEmail,
+      receiver: receiverEmail,
+      createdAt: currentTime
+    },
+    android: {
+      priority: 'high',
       notification: {
-        title: `Message from ${senderName}`,
-        body: message || 'New message',
-        android: {
-          channelId: 'chat_messages',
-          priority: 'high',
-          sound: 'default',
-          icon: 'ic_notification',
-          color: '#4f8cff',
-          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-          visibility: 'public',
-          importance: 'high',
-          pressAction: {
-            id: 'default',
-          },
-        },
-        apns: {
-          sound: 'default',
-          badge: 1,
-          contentAvailable: true,
-          mutableContent: true,
-          category: 'chat_message',
-        },
-      },
-      data: {
-        roomId: consistentRoomId,
-        senderName: senderName,
-        senderEmail: senderEmail,
-        message: message,
-        timestamp: currentTime,
-        type: 'chat_message',
-        text: message,
-        sender: senderEmail,
-        receiver: receiverEmail,
-        createdAt: currentTime,
-        click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        channelId: 'chat_messages',
+        priority: 'high',
+        sound: 'default',
+        icon: 'ic_notification',
+        color: '#4f8cff',
+        body: message || 'New message'
       }
-    };
-
-    try {
-      const response = await admin.messaging().send(payload);
-      console.log('Notification sent successfully:', response);
-      return res.status(200).json({success: true, messageId: response});
-    } catch (error) {
-      console.error('Failed to send notification:', error);
-      
-      // Handle specific Firebase Messaging errors
-      if (error.code === 'messaging/registration-token-not-registered') {
-        try {
-          // Remove invalid token and update user's record
-          await User.updateOne(
-            { email: receiverEmail },
-            { $unset: { fcmToken: 1 } }
-          );
-          console.log('Removed invalid FCM token for user:', receiverEmail);
-          
-          return res.status(200).json({
-            success: true,
-            message: 'Message saved, notification failed - invalid token removed',
-            error: error.message
-          });
-        } catch (updateError) {
-          console.error('Failed to remove invalid FCM token:', updateError);
+    },
+    apns: {
+      payload: {
+        aps: {
+          sound: 'default',
+          alert: {
+            title: `Message from ${senderName}`,
+            body: message || 'New message'
+          }
         }
       }
-      
-      return res.status(200).json({
-        success: true,
-        message: 'Message saved, notification failed',
-        error: error.message
-      });
     }
-  } else {
-    console.log('Skipping notification as receiver is in chat');
-    return res.status(200).json({success: true, message: 'Message saved, notification skipped as receiver is in chat'});
+  };
+
+  try {
+    const response = await admin.messaging().send(payload);
+    console.log('Notification sent successfully:', response);
+    return res.status(200).json({success: true, messageId: response});
+  } catch (error) {
+    console.error('Failed to send notification:', error);
+    return res.status(400).json({success: false, message: 'Failed to send message', error: error.message});
   }
 };
 
@@ -267,43 +227,6 @@ exports.saveMessage = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to save message',
-      error: error.message
-    });
-  }
-};
-
-exports.updateFcmToken = async (req, res) => {
-  try {
-    const { email, fcmToken } = req.body;
-    
-    if (!email || !fcmToken) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and FCM token are required"
-      });
-    }
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
-    }
-
-    user.fcmToken = fcmToken;
-    user.lastLogin = new Date();
-    await user.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "FCM token updated successfully"
-    });
-  } catch (error) {
-    console.error('Failed to update FCM token:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to update FCM token',
       error: error.message
     });
   }

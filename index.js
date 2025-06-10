@@ -29,7 +29,6 @@ app.use('/api/v1', userRoutes);
 
 // Socket.IO connection handling
 const onlineUsers = {};
-const userRooms = {};
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -42,19 +41,16 @@ io.on('connection', (socket) => {
     }
     onlineUsers[email] = socket.id;
     io.emit('userStatus', { email, status: 'online' });
-    console.log('User online:', email);
   });
 
-    // socket.on('disconnect', () => {
-  //   const email = Object.keys(onlineUsers).find(key => onlineUsers[key] === socket.id);
-  //   if(email) {
-  //     delete onlineUsers[email];
-  //     io.emit('updateUserStatus', {email, status: 'offline'});
-  //   }
-  // socket.on('userOnline', (userEmail) => {
-  //   onlineUsers[userEmail] = socket.id;
-  //   console.log('User online:', userEmail);
-  // });
+  socket.on('disconnect', () => {
+    const email = Object.keys(onlineUsers).find(key => onlineUsers[key] === socket.id);
+    if(email) {
+      delete onlineUsers[email];
+      io.emit('updateUserStatus', {email, status: 'offline'});
+    }
+  });
+
   socket.on('joinRoom', async (roomId) => {
     if (!roomId) {
       console.error('Invalid roomId provided for joinRoom');
@@ -78,16 +74,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('userInChat', ({ userEmail, roomId }) => {
-    userRooms[userEmail] = roomId;
-    console.log(`User ${userEmail} is in chat room: ${roomId}`);
-  });
-
-  socket.on('userLeftChat', (userEmail) => {
-    delete userRooms[userEmail];
-    console.log(`User ${userEmail} left chat`);
-  });
-
   socket.on("sendMessages", async (msg) => {
     if (!msg || !msg.text || !msg.sender || !msg.receiver || !msg.roomId) {
       console.error('Invalid message format received:', msg);
@@ -99,16 +85,13 @@ io.on('connection', (socket) => {
     const {sender, receiver, text, createdAt, roomId} = msg;
     
     try {
-      // Check if message already exists with a more precise timestamp check
+      // Check if message already exists
       const existingMessage = await Message.findOne({
         text,
         sender,
         receiver,
         roomId,
-        createdAt: {
-          $gte: new Date(createdAt).getTime() - 2000, // Within 2 seconds
-          $lte: new Date(createdAt).getTime() + 2000
-        }
+        createdAt: new Date(createdAt)
       });
 
       if (!existingMessage) {
@@ -167,18 +150,6 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error marking message as read:', error);
       socket.emit('messageError', { error: 'Failed to mark message as read' });
-    }
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-    // Remove user from online users
-    const email = Object.keys(onlineUsers).find(key => onlineUsers[key] === socket.id);
-    if (email) {
-      delete onlineUsers[email];
-      delete userRooms[email];
-      io.emit('updateUserStatus', { email, status: 'offline' });
-      console.log('User went offline:', email);
     }
   });
 });
