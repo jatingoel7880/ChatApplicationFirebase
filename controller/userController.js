@@ -80,8 +80,14 @@ exports.sendNotification = async (req, res) => {
   }
 
   const receiver = await User.findOne({email: receiverEmail});
-  if (!receiver || !receiver.fcmToken) {
-    return res.status(400).json({success: false, message: "User or token not found"});
+  if (!receiver) {
+    return res.status(400).json({success: false, message: "Receiver not found"});
+  }
+
+  // Check if receiver has a valid FCM token
+  if (!receiver.fcmToken) {
+    console.log('Receiver has no FCM token, skipping notification');
+    return res.status(200).json({success: true, message: 'Message saved, notification skipped - no FCM token'});
   }
 
   const currentTime = new Date().toISOString();
@@ -175,7 +181,44 @@ exports.sendNotification = async (req, res) => {
       return res.status(200).json({success: true, messageId: response});
     } catch (error) {
       console.error('Failed to send notification:', error);
-      return res.status(400).json({success: false, message: 'Failed to send message', error: error.message});
+      
+      // Handle specific Firebase Messaging errors
+      if (error.code === 'messaging/registration-token-not-registered') {
+        try {
+          // Remove invalid token and update user's record
+          await User.updateOne(
+            { email: receiverEmail },
+            { $unset: { fcmToken: 1 } }
+          );
+          console.log('Removed invalid FCM token for user:', receiverEmail);
+          
+          // Return success but indicate token was invalid
+          return res.status(200).json({
+            success: true,
+            message: 'Message saved, notification failed - invalid token removed',
+            error: error.message
+          });
+        } catch (updateError) {
+          console.error('Failed to remove invalid FCM token:', updateError);
+        }
+      } else if (error.code === 'messaging/invalid-registration-token') {
+        // Handle invalid token format
+        await User.updateOne(
+          { email: receiverEmail },
+          { $unset: { fcmToken: 1 } }
+        );
+        return res.status(200).json({
+          success: true,
+          message: 'Message saved, notification failed - invalid token format',
+          error: error.message
+        });
+      }
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Message saved, notification failed',
+        error: error.message
+      });
     }
   } else {
     // If receiver is in chat, just return success without sending notification
@@ -243,6 +286,43 @@ exports.saveMessage = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to save message',
+      error: error.message
+    });
+  }
+};
+
+exports.updateFcmToken = async (req, res) => {
+  try {
+    const { email, fcmToken } = req.body;
+    
+    if (!email || !fcmToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and FCM token are required"
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    user.fcmToken = fcmToken;
+    user.lastLogin = new Date();
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "FCM token updated successfully"
+    });
+  } catch (error) {
+    console.error('Failed to update FCM token:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update FCM token',
       error: error.message
     });
   }
