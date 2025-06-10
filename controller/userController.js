@@ -130,7 +130,27 @@ exports.sendNotification = async (req, res) => {
       token: receiver.fcmToken,
       notification: {
         title: `Message from ${senderName}`,
-        body: message || 'New message'
+        body: message || 'New message',
+        android: {
+          channelId: 'chat_messages',
+          priority: 'high',
+          sound: 'default',
+          icon: 'ic_notification',
+          color: '#4f8cff',
+          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+          visibility: 'public',
+          importance: 'high',
+          pressAction: {
+            id: 'default',
+          },
+        },
+        apns: {
+          sound: 'default',
+          badge: 1,
+          contentAvailable: true,
+          mutableContent: true,
+          category: 'chat_message',
+        },
       },
       data: {
         roomId: consistentRoomId,
@@ -142,7 +162,8 @@ exports.sendNotification = async (req, res) => {
         text: message,
         sender: senderEmail,
         receiver: receiverEmail,
-        createdAt: currentTime
+        createdAt: currentTime,
+        click_action: 'FLUTTER_NOTIFICATION_CLICK',
       },
       android: {
         priority: 'high',
@@ -153,8 +174,13 @@ exports.sendNotification = async (req, res) => {
           icon: 'ic_notification',
           color: '#4f8cff',
           body: message || 'New message',
-          clickAction: 'FLUTTER_NOTIFICATION_CLICK'
-        }
+          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+          visibility: 'public',
+          importance: 'high',
+          pressAction: {
+            id: 'default',
+          },
+        },
       },
       apns: {
         payload: {
@@ -166,11 +192,13 @@ exports.sendNotification = async (req, res) => {
               body: message || 'New message'
             },
             'mutable-content': 1,
-            'content-available': 1
+            'content-available': 1,
+            category: 'chat_message',
           }
         },
         headers: {
-          'apns-priority': '10'
+          'apns-priority': '10',
+          'apns-push-type': 'alert',
         }
       }
     };
