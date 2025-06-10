@@ -66,7 +66,7 @@ exports.getAllUsers=async(req,res)=>{
 }
 
 exports.sendNotification = async (req, res) => {
-  const {receiverEmail, senderName, senderEmail, roomId, message} = req.body;
+  const {receiverEmail, senderName, senderEmail, roomId, message, isReceiverInChat} = req.body;
   
   // Validate sender
   const sender = await User.findOne({email: senderEmail});
@@ -87,13 +87,16 @@ exports.sendNotification = async (req, res) => {
   const currentTime = new Date().toISOString();
   const consistentRoomId = getRoomId(senderEmail, receiverEmail);
 
-  // Check if message already exists
+  // Check if message already exists with a time window
   const existingMessage = await Message.findOne({
     text: message,
     sender: senderEmail,
     receiver: receiverEmail,
     roomId: consistentRoomId,
-    createdAt: new Date(currentTime)
+    createdAt: {
+      $gte: new Date(currentTime).getTime() - 2000, // Within 2 seconds
+      $lte: new Date(currentTime).getTime() + 2000
+    }
   });
 
   if (existingMessage) {
@@ -115,55 +118,70 @@ exports.sendNotification = async (req, res) => {
     }
   }
 
-  const payload = {
-    token: receiver.fcmToken,
-    notification: {
-      title: `Message from ${senderName}`,
-      body: message || 'New message'
-    },
-    data: {
-      roomId: consistentRoomId,
-      senderName: senderName,
-      senderEmail: senderEmail,
-      message: message,
-      timestamp: currentTime,
-      type: 'chat_message',
-      text: message,
-      sender: senderEmail,
-      receiver: receiverEmail,
-      createdAt: currentTime
-    },
-    android: {
-      priority: 'high',
+  // Only send notification if receiver is not in chat
+  if (!isReceiverInChat) {
+    const payload = {
+      token: receiver.fcmToken,
       notification: {
-        channelId: 'chat_messages',
-        priority: 'high',
+        title: `Message from ${senderName}`,
+        body: message || 'New message',
         sound: 'default',
-        icon: 'ic_notification',
-        color: '#4f8cff',
-        body: message || 'New message'
-      }
-    },
-    apns: {
-      payload: {
-        aps: {
+        badge: '1'
+      },
+      data: {
+        roomId: consistentRoomId,
+        senderName: senderName,
+        senderEmail: senderEmail,
+        message: message,
+        timestamp: currentTime,
+        type: 'chat_message',
+        text: message,
+        sender: senderEmail,
+        receiver: receiverEmail,
+        createdAt: currentTime
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'chat_messages',
+          priority: 'high',
           sound: 'default',
-          alert: {
-            title: `Message from ${senderName}`,
-            body: message || 'New message'
+          icon: 'ic_notification',
+          color: '#4f8cff',
+          body: message || 'New message',
+          clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+            alert: {
+              title: `Message from ${senderName}`,
+              body: message || 'New message'
+            },
+            'mutable-content': 1,
+            'content-available': 1
           }
+        },
+        headers: {
+          'apns-priority': '10'
         }
       }
-    }
-  };
+    };
 
-  try {
-    const response = await admin.messaging().send(payload);
-    console.log('Notification sent successfully:', response);
-    return res.status(200).json({success: true, messageId: response});
-  } catch (error) {
-    console.error('Failed to send notification:', error);
-    return res.status(400).json({success: false, message: 'Failed to send message', error: error.message});
+    try {
+      const response = await admin.messaging().send(payload);
+      console.log('Notification sent successfully:', response);
+      return res.status(200).json({success: true, messageId: response});
+    } catch (error) {
+      console.error('Failed to send notification:', error);
+      return res.status(400).json({success: false, message: 'Failed to send message', error: error.message});
+    }
+  } else {
+    // If receiver is in chat, just return success without sending notification
+    return res.status(200).json({success: true, message: 'Message saved, notification skipped as receiver is in chat'});
   }
 };
 
